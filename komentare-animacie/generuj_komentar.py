@@ -419,7 +419,7 @@ def render(c, outdir):
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS),
                     "-i", os.path.join(frames, "f_%04d.png"), "-i", wav,
                     "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
-                    "-alpha_bits", "16", "-vendor", "apl0", "-qscale:v", "9",
+                    "-alpha_bits", "8", "-vendor", "apl0", "-qscale:v", "11",
                     "-c:a", "pcm_s16le", "-shortest", mov], check=True)
     prev = os.path.join(outdir, c["nazov"] + "_nahlad.mp4")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error",
