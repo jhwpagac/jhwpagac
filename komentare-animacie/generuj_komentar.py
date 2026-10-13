@@ -3,7 +3,7 @@
 Generator animovaných komentárov (bez pozadia) na vloženie do videa.
 
 Výstup pre každý komentár:
-  - <nazov>.mov          ProRes 4444 s alfa kanálom + zvuk (priamo do Premiere)
+  - <nazov>.mov          QuickTime Animation s alfa kanálom + zvuk (priamo do Premiere)
   - <nazov>_zvuk.wav     samostatné zvukové efekty
   - <nazov>_nahlad.mp4   náhľad na tmavom pozadí (len na pozretie)
   - <nazov>_still.png    statický frame komentára (na predĺženie cez freeze)
@@ -19,16 +19,35 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 KOMENTARE = [
     {
         "nazov": "komentar_01_vibracie_pri_brzdeni",
-        "meno": "Divák",
-        "cas": "pred 2 dňami",
         "text": "A čo vibrácie pri brzdení? Výlučne pri brzdení a evidentne "
                 "pri prudšom zabrzdení. Ďakujem za odpoveď.",
-        # frázy, ktoré sa zvýraznia markerom (musia presne sedieť so slovami v texte)
-        "zvyraznit": ["vibrácie pri brzdení?", "pri prudšom zabrzdení."],
-        "lajky": 24,
-        "stitok": "KOMENTÁR OD DIVÁKA",
+    },
+    {
+        "nazov": "komentar_02_zvuk_vu_vu_na_dialnici",
+        "text": "Moje auto, keď idem po diaľnici po dobrom asfalte, robí taký zvuk, "
+                "asi od kolesa, že vu vu vu vu. A keď idem rýchlejšie, tak aj ten zvuk "
+                "je rýchlejší, že vuvuvuvuvuvuvu. Nevieš, čo by to mohlo byť?",
+    },
+    {
+        "nazov": "komentar_03_kratka_jazda",
+        "text": "Koľko km považujeme za krátku jazdu? Predpokladám, že je rozdiel, "
+                "či je to benzín alebo diesel.",
+    },
+    {
+        "nazov": "komentar_04_lepsi_benzin",
+        "text": "Lepší benzín absolútne neublíži žiadnemu motoru, či 1980 alebo 2025, "
+                "oba pôjdu plynulejšie, budú mať krajší chod a lepšiu spotrebu. "
+                "Kvalitné palivo sa preukáže v akomkoľvek motore.",
     },
 ]
+# spoločné nastavenia (dajú sa prepísať v konkrétnom komentári)
+PREDVOLENE = {
+    "meno": "Divák",
+    "cas": "pred 2 dňami",
+    "stitok": "KOMENTÁR OD DIVÁKA",
+    "zvyraznit": [],          # frázy na zvýraznenie markerom (prázdne = bez)
+    "lajky": None,            # počet lajkov (None = bez srdiečka a lajku)
+}
 
 FPS = 30
 DLZKA = 7.0            # sekundy
@@ -109,7 +128,8 @@ def layout(c):
     L["boxes"] = boxes
     L["space"] = space
     L["act_y"] = L["body_y"] + len(lines) * L["lh"] + 14 * S
-    L["card_h"] = L["act_y"] + 30 * S + 32 * S
+    L["card_h"] = (L["act_y"] + 30 * S + 32 * S) if c["lajky"] is not None \
+        else L["act_y"] + 30 * S
     # zvýraznené rozsahy slov
     hl = []
     wl = [b[0] for b in boxes]
@@ -196,6 +216,8 @@ def render_card(c, L, t):
     img = Image.alpha_composite(img, txt)
     d = ImageDraw.Draw(img)
 
+    if c["lajky"] is None:
+        return img
     # akcie: srdce + počet, Odpovedať
     ay = L["act_y"] + 16 * S
     hx = L["tx"] + 14 * S
@@ -353,8 +375,9 @@ def build_audio(L):
     for k in range(len(L["hl"])):
         if MARKER_ZVUK_LEN_PRVY and k > 0: break
         add(marker(), hl_start(L, k), -0.2 + 0.4 * k)
-    add(pop(1100, 300, 0.1, 0.55), heart_t(L))
-    add(ding(0.3), heart_t(L) + 0.03)
+    if L["lajky"] is not None:
+        add(pop(1100, 300, 0.1, 0.55), heart_t(L))
+        add(ding(0.3), heart_t(L) + 0.03)
     add(whoosh(0.5, 3200, 450, 0.4), T_OUT - 0.05)
     st = np.stack([L_ch, R_ch], 1)
     st = st / (np.max(np.abs(st)) + 1e-9) * 0.7  # cca -3 dB
@@ -367,7 +390,15 @@ def write_wav(path, data):
 
 # ---------------------------------------------------------------- RENDER
 def render(c, outdir):
+    global DLZKA, T_OUT
+    c = {**PREDVOLENE, **c}
     L = layout(c)
+    L["lajky"] = c["lajky"]
+    # dĺžka podľa textu: čas na prečítanie ~0,22 s na slovo, min. 3 s
+    words_end = T_WORDS + len(L["boxes"]) * WORD_STAGGER + D_WORD
+    extra = heart_t(L) + 1.0 if (c["lajky"] is not None or L["hl"]) else words_end
+    T_OUT = round(max(extra, words_end) + max(3.0, len(L["boxes"]) * 0.22), 2)
+    DLZKA = T_OUT + D_OUT + 0.15
     badge = render_badge(c)
     bsh, bpad = shadow_of(badge, 10 * SS, 0.30)
     # rozmery plátna
@@ -383,7 +414,7 @@ def render(c, outdir):
     frames = os.path.join(outdir, "_frames_" + c["nazov"])
     shutil.rmtree(frames, ignore_errors=True); os.makedirs(frames)
     nfr = int(DLZKA * FPS)
-    still_t = heart_t(L) + 1.0
+    still_t = T_OUT - 0.5
     still_saved = False
     for fi in range(nfr):
         t = fi / FPS
@@ -394,7 +425,7 @@ def render(c, outdir):
         s = 0.72 + 0.28 * ease_out_back(pin, 1.9) if pin < 1 else 1.0
         s *= 1 - 0.12 * pout
         op = ease_out_cubic(clamp(pin * 2.2)) * (1 - pout)
-        float_y = math.sin(max(0, t - 1.2) * 1.6) * 2.0 if pin >= 1 else 0
+        float_y = 0  # statický hold = malé súbory
         dy = (1 - ease_out_cubic(pin)) * 60 - pout * 40 + float_y
         card = render_card(c, L, t)
         sh, spad = shadow_of(card, 22 * SS, 0.45)
@@ -418,8 +449,7 @@ def render(c, outdir):
     mov = os.path.join(outdir, c["nazov"] + ".mov")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS),
                     "-i", os.path.join(frames, "f_%04d.png"), "-i", wav,
-                    "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
-                    "-alpha_bits", "8", "-vendor", "apl0", "-qscale:v", "11",
+                    "-c:v", "qtrle", "-pix_fmt", "argb",
                     "-c:a", "pcm_s16le", "-shortest", mov], check=True)
     prev = os.path.join(outdir, c["nazov"] + "_nahlad.mp4")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error",
