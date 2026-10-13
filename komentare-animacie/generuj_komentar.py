@@ -26,7 +26,7 @@ KOMENTARE = [
         # frázy, ktoré sa zvýraznia markerom (musia presne sedieť so slovami v texte)
         "zvyraznit": ["vibrácie pri brzdení?", "pri prudšom zabrzdení."],
         "lajky": 24,
-        "stitok": "OTÁZKA OD DIVÁKA",
+        "stitok": "KOMENTÁR OD DIVÁKA",
     },
 ]
 
@@ -34,9 +34,16 @@ FPS = 30
 DLZKA = 7.0            # sekundy
 SS = 2                 # supersampling (kreslí sa v 2x, potom zmenší)
 CANVAS_W = 1080        # šírka výsledného videa
-ACCENT = (255, 106, 0)         # oranžová – štítok
-MARKER = (255, 214, 64)        # žltý zvýrazňovač
-HEART = (255, 45, 85)
+# farby značky Araver – čierna / červená / biela
+ACCENT = (227, 6, 19)          # červená – štítok, avatar, akcenty
+MARKER = (227, 6, 19)          # červený zvýrazňovač pod bielym textom
+HEART = (255, 40, 55)
+CARD = (17, 17, 19)            # čierna karta
+CARD_EDGE = (48, 48, 52)       # jemný okraj karty
+TEXT = (255, 255, 255)
+META = (150, 150, 158)
+# zvuk zvýrazňovača len pri prvej fráze
+MARKER_ZVUK_LEN_PRVY = True
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
 SR = 48000
 
@@ -130,7 +137,10 @@ def render_card(c, L, t):
     W, H = L["card_w"], L["card_h"]
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle([0, 0, W - 1, H - 1], radius=30 * S, fill=(255, 255, 255, 255))
+    d.rounded_rectangle([0, 0, W - 1, H - 1], radius=30 * S, fill=CARD + (255,),
+                        outline=CARD_EDGE + (255,), width=2 * S)
+    # červený akcentový pruh vľavo
+    d.rounded_rectangle([0, 30 * S, 7 * S, H - 30 * S], radius=4 * S, fill=ACCENT + (255,))
 
     # avatar s iniciálou
     p, av = L["pad"], L["av"]
@@ -139,7 +149,7 @@ def render_card(c, L, t):
     gd = ImageDraw.Draw(grad)
     for i in range(av):
         k = i / av
-        col = (int(255 * (1 - k) + 255 * k), int(150 * (1 - k) + 70 * k), int(40 * (1 - k) + 0 * k), 255)
+        col = (int(255 * (1 - k) + 160 * k), int(50 * (1 - k) + 0 * k), int(50 * (1 - k) + 10 * k), 255)
         gd.line([(0, i), (av, i)], fill=col)
     mask = Image.new("L", (av, av), 0)
     ImageDraw.Draw(mask).ellipse([0, 0, av - 1, av - 1], fill=255)
@@ -149,10 +159,10 @@ def render_card(c, L, t):
     d.text((p + av / 2, ay + av / 2), ini, font=fi, fill="white", anchor="mm")
 
     # meno + čas
-    d.text((L["tx"], L["name_y"]), c["meno"], font=L["f_name"], fill=(20, 20, 24), anchor="lt")
+    d.text((L["tx"], L["name_y"]), c["meno"], font=L["f_name"], fill=TEXT + (255,), anchor="lt")
     nw = L["f_name"].getlength(c["meno"])
     d.text((L["tx"] + nw + 12 * S, L["name_y"] + 2 * S), "· " + c["cas"], font=L["f_meta"],
-           fill=(140, 140, 150), anchor="lt")
+           fill=META, anchor="lt")
 
     # marker zvýraznenie (pod textom)
     base = L["f_body"].getmetrics()[0]
@@ -182,7 +192,7 @@ def render_card(c, L, t):
         wp = ease_out_cubic(prog(t, T_WORDS + i * WORD_STAGGER, D_WORD))
         if wp <= 0: continue
         dy = (1 - wp) * 14 * S
-        td.text((x, y + base + dy), wd, font=L["f_body"], fill=(17, 17, 22, int(255 * wp)), anchor="ls")
+        td.text((x, y + base + dy), wd, font=L["f_body"], fill=TEXT + (int(255 * wp),), anchor="ls")
     img = Image.alpha_composite(img, txt)
     d = ImageDraw.Draw(img)
 
@@ -208,12 +218,12 @@ def render_card(c, L, t):
                 d.ellipse([px - s2, py - s2, px + s2, py + s2], fill=HEART + (int(255 * (1 - rp)),))
         draw_heart(d, hx, ay, hs, fill=HEART + (255,))
     else:
-        draw_heart(d, hx, ay, hs, outline=(120, 120, 130, 255), width=int(2.6 * S))
+        draw_heart(d, hx, ay, hs, outline=META + (255,), width=int(2.6 * S))
     cnt = c["lajky"] + (1 if liked else 0)
-    col = HEART if liked else (110, 110, 120)
+    col = HEART if liked else META
     d.text((hx + 26 * S, ay), str(cnt), font=L["f_act"], fill=col + (255,), anchor="lm")
     d.text((hx + 26 * S + L["f_act"].getlength("999") + 36 * S, ay), "Odpovedať",
-           font=L["f_act"], fill=(120, 120, 130, 255), anchor="lm")
+           font=L["f_act"], fill=META + (255,), anchor="lm")
     return img
 
 def hl_start(L, k):
@@ -238,7 +248,15 @@ def render_badge(c):
     d.rounded_rectangle([0, 0, w - 1, h - 1], radius=h // 2, fill=ACCENT + (255,))
     cx, cy = 18 * S + ic / 2, h / 2
     d.ellipse([cx - ic / 2, cy - ic / 2, cx + ic / 2, cy + ic / 2], fill=(255, 255, 255, 255))
-    d.text((cx, cy + 1 * S), "?", font=font("Black", 19), fill=ACCENT + (255,), anchor="mm")
+    # ikona bubliny komentára
+    bw, bh = ic * 0.56, ic * 0.40
+    d.rounded_rectangle([cx - bw / 2, cy - bh / 2 - 1.5 * S, cx + bw / 2, cy + bh / 2 - 1.5 * S],
+                        radius=3 * S, fill=ACCENT + (255,))
+    d.polygon([(cx - bw / 2 + 3 * S, cy + bh / 2 - 2 * S), (cx - bw / 2 + 3 * S, cy + bh / 2 + 4.5 * S),
+               (cx - bw / 2 + 9 * S, cy + bh / 2 - 2 * S)], fill=ACCENT + (255,))
+    for j in (-1, 0, 1):
+        dx = cx + j * 4.2 * S; dyy = cy - 1.5 * S
+        d.ellipse([dx - 1.4 * S, dyy - 1.4 * S, dx + 1.4 * S, dyy + 1.4 * S], fill=(255, 255, 255, 255))
     x = 18 * S + ic + 12 * S
     for ch in txt:
         d.text((x, cy), ch, font=f, fill="white", anchor="lm")
@@ -333,6 +351,7 @@ def build_audio(L):
     for i, b in enumerate(L["boxes"]):
         add(tick(0.07 + 0.02 * rng.random()), T_WORDS + i * WORD_STAGGER, (b[1] / L["card_w"] - 0.5) * 0.8)
     for k in range(len(L["hl"])):
+        if MARKER_ZVUK_LEN_PRVY and k > 0: break
         add(marker(), hl_start(L, k), -0.2 + 0.4 * k)
     add(pop(1100, 300, 0.1, 0.55), heart_t(L))
     add(ding(0.3), heart_t(L) + 0.03)
@@ -378,7 +397,7 @@ def render(c, outdir):
         float_y = math.sin(max(0, t - 1.2) * 1.6) * 2.0 if pin >= 1 else 0
         dy = (1 - ease_out_cubic(pin)) * 60 - pout * 40 + float_y
         card = render_card(c, L, t)
-        sh, spad = shadow_of(card, 22 * SS, 0.28)
+        sh, spad = shadow_of(card, 22 * SS, 0.45)
         place(canvas, sh, ccx, ccy + dy + 14 * s, s, op)
         place(canvas, card, ccx, ccy + dy, s, op)
         # štítok
