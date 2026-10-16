@@ -171,6 +171,7 @@ T_CNT, D_CNT = 0.3, 1.0
 T_NUM_OUT, D_NUM_OUT = 3.5, 0.4
 GREEN_TOP, GREEN_BOT = (120, 255, 160), (18, 200, 80)
 OUTLINE = (4, 48, 22)
+RED_TOP, RED_BOT, RED_OUTLINE = (255, 120, 120), (225, 18, 30), (70, 0, 8)
 
 def fmt(v):
     return f"{int(v):,}".replace(",", " ") + " €"
@@ -203,11 +204,25 @@ def cash_register():
     s[o:o + m] += np.convolve(rng.standard_normal(m), np.ones(6) / 6, mode="same") * np.sin(np.pi * tm) * 0.25
     return s / np.max(np.abs(s)) * 0.9
 
-def render_number_layers(text, size):
+def loss_sound():
+    """Klesajúce „wah-wah“ – strata peňazí."""
+    out = []
+    for f0, f1, d in [(392, 370, 0.28), (370, 349, 0.28), (349, 262, 0.75)]:
+        n = int(d * SR); t = np.arange(n) / SR
+        f = f0 + (f1 - f0) * (t / d)
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        vib = 1 + 0.004 * np.sin(2 * np.pi * 6 * t) * (t / d)
+        w = sum(np.sin(ph * k * vib) / k ** 1.3 for k in range(1, 7))   # dychový nástroj
+        env = np.minimum(1, t / 0.02) * np.minimum(1, (d - t) / 0.06)
+        out.append(w * env)
+    s = np.concatenate(out)
+    return s / np.max(np.abs(s)) * 0.55
+
+def render_number_layers(text, size, top=GREEN_TOP, bot=GREEN_BOT, outline=OUTLINE, glowc=(40, 255, 110)):
     f = font("Black", size)
     # pevná šírka číslic, aby číslo neposkakovalo
     dw = max(f.getlength(c) for c in "0123456789")
-    widths = [dw if c.isdigit() else (dw * 0.42 if c == " " else f.getlength(c)) for c in text]
+    widths = [dw if c.isdigit() else (dw * 0.42 if c == " " else (dw * 0.8 if c == "−" else f.getlength(c))) for c in text]
     total = sum(widths)
     pad = 40 * S
     W, H = int(total + pad * 2), int(size * S * 1.5 + pad)
@@ -224,15 +239,15 @@ def render_number_layers(text, size):
     bb = fill.getbbox() or (0, 0, W, H)
     for y in range(H):
         k = clamp((y - bb[1]) / max(1, bb[3] - bb[1]))
-        gd.line([(0, y), (W, y)], fill=tuple(int(a + (b - a) * k) for a, b in zip(GREEN_TOP, GREEN_BOT)) + (255,))
+        gd.line([(0, y), (W, y)], fill=tuple(int(a + (b - a) * k) for a, b in zip(top, bot)) + (255,))
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     sh = strk.filter(ImageFilter.GaussianBlur(10 * S)).point(lambda v: int(v * 0.6))
     shl = Image.new("RGBA", (W, H), (0, 0, 0, 0)); shl.putalpha(sh)
     img.alpha_composite(shl, (0, int(6 * S)))
     glow = strk.filter(ImageFilter.GaussianBlur(18 * S)).point(lambda v: int(v * 0.55))
-    gl = Image.new("RGBA", (W, H), (40, 255, 110, 0)); gl.putalpha(glow)
+    gl = Image.new("RGBA", (W, H), glowc + (0,)); gl.putalpha(glow)
     img.alpha_composite(gl)
-    ol = Image.new("RGBA", (W, H), OUTLINE + (0,)); ol.putalpha(strk)
+    ol = Image.new("RGBA", (W, H), outline + (0,)); ol.putalpha(strk)
     img.alpha_composite(ol)
     grad.putalpha(fill); img.alpha_composite(grad)
     # lesk – svetlý pruh v hornej tretine
@@ -241,7 +256,7 @@ def render_number_layers(text, size):
     wl = Image.new("RGBA", (W, H), (255, 255, 255, 0)); wl.putalpha(hl); img.alpha_composite(wl)
     return img
 
-def render_sum(target, name, kasa):
+def render_sum(target, name, kasa, minus=False):
     W, H = 1080, 330
     nfr = int(NUM_DUR * FPS)
     steps = 12
@@ -256,9 +271,11 @@ def render_sum(target, name, kasa):
         if pc < 1 and pc > 0:
             val = round(val / 10) * 10 + (fi * 7) % 10  # „živé“ posledné cifry
         val = min(val, target) if pc < 1 else target
-        txt = fmt(val)
+        txt = ("−" if minus else "") + fmt(val)
         if txt not in cache:
-            cache.clear(); cache[txt] = render_number_layers(txt, 112)
+            cache.clear()
+            cache[txt] = (render_number_layers(txt, 112, RED_TOP, RED_BOT, RED_OUTLINE, (255, 40, 50))
+                          if minus else render_number_layers(txt, 112))
         img = cache[txt]
         # pulz pri každom cinku a väčší na konci
         bucket = int(val / (target / steps))
@@ -280,7 +297,7 @@ def render_sum(target, name, kasa):
                 cx, cy = W / 2, H / 2
                 d.line([(cx + math.cos(a) * r0, cy + math.sin(a) * r0 * 0.42),
                         (cx + math.cos(a) * r1, cy + math.sin(a) * r1 * 0.42)],
-                       fill=(120, 255, 160, int(230 * (1 - pend))), width=5)
+                       fill=((255, 120, 120) if minus else (120, 255, 160)) + (int(230 * (1 - pend)),), width=5)
         w, h = int(img.width * s / S), int(img.height * s / S)
         im = opacity(img.resize((w, h), Image.LANCZOS), op)
         canvas.alpha_composite(im, (int(W / 2 - w / 2), int(H / 2 - h / 2)))
@@ -291,15 +308,138 @@ def render_sum(target, name, kasa):
     for k in range(1, steps + 1):
         u = k / steps
         tc = T_CNT + D_CNT * (1 - (1 - u) ** (1 / 3))   # inverzia ease_out_cubic
-        add(buf, coin(1.0 + 0.02 * k + rng.uniform(-0.02, 0.02), 0.30), tc - 0.01, rng.uniform(-0.5, 0.5))
+        pitch = (1.0 - 0.03 * k) if minus else (1.0 + 0.02 * k)   # pri mínuse tóny klesajú
+        add(buf, coin(pitch + rng.uniform(-0.02, 0.02), 0.30), tc - 0.01, rng.uniform(-0.5, 0.5))
     add(buf, whoosh(0.3, 600, 3000, 0.25), T_POP)
-    if kasa:
+    if minus:
+        add(buf, loss_sound(), T_CNT + D_CNT - 0.02)
+    elif kasa:
         add(buf, cash_register(), T_CNT + D_CNT - 0.02, 0, 1.3)
     else:
         add(buf, coin(1.0, 0.5, 0.8), T_CNT + D_CNT, -0.2); add(buf, coin(1.26, 0.4, 0.8), T_CNT + D_CNT + 0.06, 0.2)
     add(buf, whoosh(0.4, 3000, 500, 0.25), T_NUM_OUT - 0.05)
     wav = os.path.join(HERE, name + "_zvuk.wav"); write_wav(wav, finish(buf))
     export(name, frames, wav, W, H, NUM_DUR); shutil.rmtree(frames)
+    print("hotovo", name)
+
+# ================================================================= MAPA SLOVENSKA
+MAP_DUR = 5.6
+T_DRAW, D_DRAW = 0.1, 1.5
+T_FILL, D_FILL = 1.1, 0.6
+MESTA = [  # (názov, zem. šírka, zem. dĺžka, čas pinu, strana štítku)
+    ("Bratislava", 48.1486, 17.1077, 1.85, "below"),
+    ("Trnava", 48.3774, 17.5872, 2.25, "right"),
+]
+T_MAP_OUT, D_MAP_OUT = 5.1, 0.45
+MAP_FILL = (24, 24, 28)
+MAP_LINE = (255, 255, 255)
+PIN = (227, 6, 19)
+
+def render_map(name="mapa_slovensko"):
+    import json
+    geo = json.load(open(os.path.join(HERE, "slovensko.geojson")))["geometry"]["coordinates"][0]
+    lat0 = math.radians(48.7)
+    proj = lambda lon, lat: (lon * math.cos(lat0), -lat)
+    P = np.array([proj(*c) for c in geo])
+    W, H = 1080, 620
+    mn, mx = P.min(0), P.max(0)
+    sc = min(940 / (mx[0] - mn[0]), 470 / (mx[1] - mn[1])) * S
+    off = np.array([(W * S - (mx[0] - mn[0]) * sc) / 2, (H * S - (mx[1] - mn[1]) * sc) / 2 + 20 * S]) - mn * sc
+    to_px = lambda lon, lat: np.array(proj(lon, lat)) * sc + off
+    pts = P * sc + off
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1); cum = np.concatenate([[0], np.cumsum(seg)])
+    total = cum[-1]
+    fpil = font("Bold", 24)
+    pin_img_cache = {}
+
+    def draw_pin(d, x, y, r):
+        # kvapka: kruh + hrot dole
+        d.polygon([(x - r * 0.72, y - r * 1.25), (x + r * 0.72, y - r * 1.25), (x, y)], fill=PIN + (255,))
+        d.ellipse([x - r, y - r * 2.6, x + r, y - r * 0.6], fill=PIN + (255,), outline=(255, 255, 255, 255), width=int(3 * S))
+        d.ellipse([x - r * 0.38, y - r * 1.98, x + r * 0.38, y - r * 1.22], fill=(255, 255, 255, 255))
+
+    frames = os.path.join(HERE, "_frames_" + name); shutil.rmtree(frames, ignore_errors=True); os.makedirs(frames)
+    nfr = int(MAP_DUR * FPS)
+    for fi in range(nfr):
+        t = fi / FPS
+        big = Image.new("RGBA", (W * S, H * S), (0, 0, 0, 0))
+        # výplň
+        pf = ease_out_cubic(prog(t, T_FILL, D_FILL))
+        if pf > 0:
+            fl = Image.new("RGBA", big.size, (0, 0, 0, 0))
+            ImageDraw.Draw(fl).polygon([tuple(p) for p in pts], fill=MAP_FILL + (int(225 * pf),))
+            # tieň pod mapou
+            sh = fl.split()[3].filter(ImageFilter.GaussianBlur(14 * S)).point(lambda v: int(v * 0.5))
+            shl = Image.new("RGBA", big.size, (0, 0, 0, 0)); shl.putalpha(sh)
+            big.alpha_composite(shl, (0, int(10 * S))); big.alpha_composite(fl)
+        # obrys – kreslí sa postupne
+        pd = ease_in_out(prog(t, T_DRAW, D_DRAW))
+        if pd > 0:
+            L = total * pd
+            k = int(np.searchsorted(cum, L))
+            line = [tuple(p) for p in pts[:k]]
+            if k < len(pts) and k > 0:
+                u = (L - cum[k - 1]) / max(1e-9, seg[k - 1]); line.append(tuple(pts[k - 1] + (pts[k] - pts[k - 1]) * u))
+            if len(line) > 1:
+                gl = Image.new("L", big.size, 0)
+                ImageDraw.Draw(gl).line(line, fill=255, width=int(14 * S), joint="curve")
+                gl = gl.filter(ImageFilter.GaussianBlur(10 * S)).point(lambda v: int(v * 0.35))
+                gll = Image.new("RGBA", big.size, MAP_LINE + (0,)); gll.putalpha(gl); big.alpha_composite(gll)
+                d = ImageDraw.Draw(big)
+                d.line(line, fill=MAP_LINE + (255,), width=int(4 * S), joint="curve")
+                if pd < 1:
+                    hx, hy = line[-1]; r = 7 * S
+                    d.ellipse([hx - r, hy - r, hx + r, hy + r], fill=(255, 255, 255, 255))
+        d = ImageDraw.Draw(big)
+        # piny + štítky
+        for nm, lat, lon, tp, side in MESTA:
+            pp = prog(t, tp, 0.45)
+            if pp <= 0: continue
+            x, y = to_px(lon, lat)
+            # vlnka na mieste dopadu
+            q = prog(t, tp + 0.25, 0.7)
+            if 0 < q < 1:
+                rr = (8 + 46 * q) * S
+                d.ellipse([x - rr, y - rr * 0.45, x + rr, y + rr * 0.45], outline=PIN + (int(255 * (1 - q)),), width=int(3 * S))
+            drop = (1 - ease_out_back(pp, 2.2)) * 70 * S
+            d.ellipse([x - 9 * S, y - 3 * S, x + 9 * S, y + 3 * S], fill=(0, 0, 0, int(120 * pp)))
+            draw_pin(d, x, y - drop, 19 * S)
+            # štítok
+            pl = ease_out_back(prog(t, tp + 0.2, 0.4), 2.0)
+            if pl > 0:
+                tw = fpil.getlength(nm); ph = 46 * S; pw = tw + 30 * S
+                ly = y - 84 * S
+                lx = x - pw - 26 * S if side == "left" else x + 26 * S
+                if side == "below":
+                    ly = y + 16 * S; lx = x - pw * 0.25
+                lab = Image.new("RGBA", (int(pw), int(ph)), (0, 0, 0, 0))
+                ld = ImageDraw.Draw(lab)
+                ld.rounded_rectangle([0, 0, pw - 1, ph - 1], radius=ph / 2, fill=(15, 15, 18, 240),
+                                     outline=PIN + (255,), width=int(3 * S))
+                ld.text((pw / 2, ph / 2), nm, font=fpil, fill="white", anchor="mm")
+                w2, h2 = max(1, int(pw * pl)), max(1, int(ph * pl))
+                lab = lab.resize((w2, h2), Image.BICUBIC)
+                cx = lx + pw / 2; cy = ly + ph / 2
+                big.alpha_composite(lab, (int(cx - w2 / 2), int(cy - h2 / 2)))
+                d = ImageDraw.Draw(big)
+        pout = ease_in_cubic(prog(t, T_MAP_OUT, D_MAP_OUT))
+        canvas = big.resize((W, H), Image.LANCZOS)
+        if pout > 0:
+            s2 = 1 - 0.1 * pout
+            cw, ch = int(W * s2), int(H * s2)
+            small = opacity(canvas.resize((cw, ch), Image.LANCZOS), 1 - pout)
+            canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0)); canvas.alpha_composite(small, ((W - cw) // 2, (H - ch) // 2))
+        canvas.save(os.path.join(frames, f"f_{fi:04d}.png"))
+        if fi == int(4.0 * FPS): canvas.save(os.path.join(HERE, name + ".png"))
+    n = int(MAP_DUR * SR); buf = mix(n)
+    add(buf, whoosh(D_DRAW + 0.2, 300, 2200, 0.35), T_DRAW)
+    for i, (nm, lat, lon, tp, side) in enumerate(MESTA):
+        from generuj_komentar import pop as _pop
+        add(buf, _pop(900, 200, 0.14, 0.75), tp + 0.3, -0.3 + 0.6 * i)
+        add(buf, coin(0.75 + 0.1 * i, 0.22, 0.4), tp + 0.42, -0.3 + 0.6 * i)
+    add(buf, whoosh(0.45, 3000, 500, 0.3), T_MAP_OUT - 0.05)
+    wav = os.path.join(HERE, name + "_zvuk.wav"); write_wav(wav, finish(buf))
+    export(name, frames, wav, W, H, MAP_DUR); shutil.rmtree(frames)
     print("hotovo", name)
 
 if __name__ == "__main__":
@@ -309,3 +449,5 @@ if __name__ == "__main__":
         render_signature((20, 50, 160), (255, 255, 255), "podpis_modry")
     if "300" in which: render_sum(300000, "suma_300000", kasa=False)
     if "130" in which: render_sum(130000, "suma_130000", kasa=True)
+    if "minus" in which: render_sum(10000, "suma_minus_10000", kasa=False, minus=True)
+    if "mapa" in which: render_map()
