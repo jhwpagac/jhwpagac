@@ -43,17 +43,25 @@ def main():
     W = 1080
     lines = [text_layer(*r) for r in RIADKY]
     logo = load_logo(300 * S)
+    # tmavá žiara okolo loga, aby sa oddelilo od bieleho textu pod ním
+    LP = 30 * S
+    logo_sh = Image.new("RGBA", (logo.width + 2 * LP, logo.height + 2 * LP), (0, 0, 0, 0))
+    la = Image.new("L", logo_sh.size, 0); la.paste(logo.split()[3], (LP, LP))
+    la = la.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(9 * S)).point(lambda v: min(255, int(v * 1.6)))
+    dk = Image.new("RGBA", logo_sh.size, (14, 16, 20, 0)); dk.putalpha(la)
+    logo_sh.alpha_composite(dk); logo_sh.alpha_composite(logo, (LP, LP))
     gap = -8 * S
     block_h = sum(l.height for l in lines) + gap * (len(lines) - 1)
-    H2 = int(70 * S + block_h + 40 * S + logo.height + 70 * S)
+    H2 = int(70 * S + block_h + logo.height * 0.6 + 60 * S)
     H = int(math.ceil(H2 / S / 2) * 2)
     x0 = 80 * S
     ys = []; y = 70 * S
     for l in lines: ys.append(y); y += l.height + gap
     under_y = ys[1] + lines[1].height * 0.97
-    logo_y = y + 40 * S; logo_x = W * S - 80 * S - logo.width   # pravý roh pod textom
-    T = [0.1, 0.45, 0.8]; D_LINE = 0.55
-    T_UNDER, T_LOGO, T_OUT, DUR = 1.25, 1.55, 4.7, 5.3
+    # logo čiastočne prekrýva koniec posledného riadku
+    logo_y = ys[2] + lines[2].height * 0.42; logo_x = x0 + lines[2].width - logo.width * 0.42
+    T = [0.1, 0.1, 0.1]; D_LINE = 0.6   # celý text naraz
+    T_UNDER, T_LOGO, T_OUT, DUR = 0.8, 1.15, 4.7, 5.3
     frames = new_frames(NAME)
     tw_gold = lines[1].width - 20 * S
     for fi in range(int(DUR * FPS)):
@@ -90,8 +98,8 @@ def main():
         pl = prog(t, T_LOGO, 0.6)
         if pl > 0:
             e = ease_out_cubic(pl)
-            im = opacity(logo, e * (1 - pout))
-            big.alpha_composite(im, (int(logo_x + (1 - e) * 40 * S), int(logo_y)))
+            im = opacity(logo_sh, e * (1 - pout))
+            big.alpha_composite(im, (int(logo_x - LP + (1 - e) * 40 * S), int(logo_y - LP)))
         # jemný tieň pod všetkým kvôli čitateľnosti na videu
         a = big.split()[3].filter(ImageFilter.GaussianBlur(10 * S)).point(lambda v: int(v * 0.55))
         sh = Image.new("RGBA", big.size, (0, 0, 0, 0)); sh.putalpha(a)
@@ -99,9 +107,8 @@ def main():
         canvas = out.resize((W, H), Image.LANCZOS)
         canvas.save(os.path.join(frames, f"f_{fi:04d}.png"))
     n = int(DUR * SR); buf = mix(n)
-    for i, tt in enumerate(T):
-        add(buf, whoosh(0.4, 500, 3000, 0.35), tt - 0.05, -0.3 + 0.3 * i)
-        add(buf, pop(700 + 150 * i, 220, 0.11, 0.45), tt + 0.25)
+    add(buf, whoosh(0.45, 450, 3200, 0.45), T[0] - 0.05)
+    add(buf, pop(750, 200, 0.13, 0.6), T[0] + 0.3)
     add(buf, whoosh(0.5, 1800, 4500, 0.2), T_UNDER)
     add(buf, sparkle(), T_UNDER + 0.15)
     add(buf, pop(1100, 350, 0.1, 0.4), T_LOGO + 0.1)
