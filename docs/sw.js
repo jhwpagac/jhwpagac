@@ -1,6 +1,6 @@
 // Jednoduchý service worker: appka sa dá nainštalovať a otvorí sa aj pri slabom signáli.
 // Stránka sa vždy najprv skúsi stiahnuť zo siete (aby si mal najnovšiu verziu), dáta sa necachujú.
-const CACHE = "kalendar-v2";
+const CACHE = "kalendar-v3";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {
