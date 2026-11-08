@@ -382,7 +382,7 @@ function editPost(id, date){
       <button class="btn" type="button" data-act="close">Zrušiť</button>
       <button class="btn primary" type="submit">Uložiť</button>
     </div>
-    <input type="hidden" name="id" value="${esc(id||"")}">
+    <input type="hidden" name="pid" value="${esc(id||"")}">
   </form>`);
 }
 let linkSeq = 100;
@@ -501,7 +501,7 @@ function readClientRows(){
   });
 }
 function editPostFrom(n){ editPost(null); const f = document.getElementById("post-form"); if (!f) return;
-  f.title.value = n.title + " (kópia)"; f.clientId.value = n.clientId; f.time.value = n.time||""; f.format.value = n.format; f.caption.value = n.caption||""; f.notes.value = n.notes||"";
+  f.elements.title.value = n.title + " (kópia)"; f.elements.clientId.value = n.clientId; f.elements.time.value = n.time||""; f.elements.format.value = n.format; f.elements.caption.value = n.caption||""; f.elements.notes.value = n.notes||"";
   f.querySelectorAll('input[name=platforms]').forEach(cb => cb.checked = (n.platforms||[]).includes(cb.value));
   document.getElementById("links").innerHTML = (n.links&&n.links.length?n.links:[{label:"",url:""}]).map(l=>linkRow(l)).join("");
 }
@@ -509,17 +509,17 @@ app.addEventListener("submit", async (ev) => {
   if (ev.target.id !== "post-form") return;
   ev.preventDefault();
   const f = ev.target;
-  if (!f.title.value.trim()) { f.title.focus(); toast("Doplň názov príspevku"); return; }
-  if (!f.date.value) { f.date.focus(); toast("Vyber dátum"); return; }
+  if (!f.elements.title.value.trim()) { f.elements.title.focus(); toast("Doplň názov príspevku"); return; }
+  if (!f.elements.date.value) { f.elements.date.focus(); toast("Vyber dátum"); return; }
   const links = [...f.querySelectorAll(".link-row")].map(r => ({label: r.querySelector('[data-k=label]').value.trim(), url: r.querySelector('[data-k=url]').value.trim()})).filter(l => l.url);
   const bad = links.find(l => !safeUrl(l.url));
   if (bad) { toast("Odkaz musí začínať https://"); return; }
   const data = {
-    clientId: f.clientId.value, status: f.status.value, date: f.date.value, time: f.time.value, format: f.format.value,
+    clientId: f.elements.clientId.value, status: f.elements.status.value, date: f.elements.date.value, time: f.elements.time.value, format: f.elements.format.value,
     platforms: [...f.querySelectorAll('input[name=platforms]:checked')].map(x=>x.value),
-    title: f.title.value.trim(), caption: f.caption.value, links, notes: f.notes.value
+    title: f.elements.title.value.trim(), caption: f.elements.caption.value, links, notes: f.elements.notes.value
   };
-  const id = f.querySelector('input[name=id]').value;
+  const id = f.querySelector('input[name=pid]').value;
   if (id) Object.assign(state.posts.find(p=>p.id===id), data);
   else state.posts.push(Object.assign({id: uid("p")}, data));
   ui.month = data.date.slice(0,7);
