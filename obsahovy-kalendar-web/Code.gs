@@ -22,6 +22,21 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
+/** API pre nainštalovanú appku (PWA na GitHub Pages). Prijíma {fn, args} ako JSON. */
+function doPost(e) {
+  const API = { getData: getData, checkLogin: checkLogin, savePost: savePost, deletePost: deletePost, saveClients: saveClients, resetClientLink: resetClientLink };
+  let out;
+  try {
+    const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    const fn = API[req.fn];
+    if (!fn) throw new Error('NEZNAMA_AKCIA');
+    out = { ok: true, result: fn.apply(null, Array.isArray(req.args) ? req.args : []) };
+  } catch (err) {
+    out = { ok: false, error: String(err && err.message || err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
 // ---------- verejné funkcie volané zo stránky ----------
 
 /** auth = {key: heslo} pre správcu alebo {token: kód klienta} pre majiteľa firmy */
@@ -30,7 +45,7 @@ function getData(auth) {
   const clients = readSheet_(SH_CLIENTS, CLIENT_COLS);
   const posts = readSheet_(SH_POSTS, POST_COLS).map(parsePost_);
   if (isAdmin_(auth)) return { admin: true, clients: clients, posts: posts };
-  const token = auth && auth.token ? String(auth.token) : '';
+  const token = auth && auth.token ? String(auth.token).replace(/[^a-zA-Z0-9]/g, '') : '';
   const client = token ? clients.find(function (c) { return c.token === token; }) : null;
   if (!client) throw new Error('NEPLATNY_ODKAZ');
   return {

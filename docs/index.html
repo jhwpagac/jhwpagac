@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2449c4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kalendár">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="config.js"></script>
+<title>Obsahový kalendár</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: sticky toolbar, then a two-column workspace — month grid (or agenda on phones) + "this week" rail */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#e9edf3; --line:#d5dbe5;
+  --fg:#16202e; --muted:#5b6678; --accent:#2449c4; --accent-fg:#ffffff;
+  --warn:#b45309; --warn-bg:#fdf1e2; --bad:#b42336; --bad-bg:#fbe8ea; --ok:#167a4a; --ok-bg:#e3f4ea;
+  --shadow:0 10px 30px rgba(20,32,60,.14);
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#171e29; --surface-2:#202938; --line:#2c3748;
+  --fg:#e6ebf3; --muted:#9aa6b8; --accent:#7f9cff; --accent-fg:#0b1020;
+  --warn:#f0a54a; --warn-bg:#33240f; --bad:#ff7b8a; --bad-bg:#3a1820; --ok:#5fd394; --ok-bg:#12301f;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#171e29; --surface-2:#202938; --line:#2c3748;
+  --fg:#e6ebf3; --muted:#9aa6b8; --accent:#7f9cff; --accent-fg:#0b1020;
+  --warn:#f0a54a; --warn-bg:#33240f; --bad:#ff7b8a; --bad-bg:#3a1820; --ok:#5fd394; --ok-bg:#12301f;
+  --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1400px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding-block:12px}
+.brand{font:700 1.35rem/1.1 var(--f-display);letter-spacing:-.01em;margin:0;flex:1 1 auto;min-width:0;text-wrap:balance}
+.brand small{display:block;font:500 .78rem var(--f-body);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:600;font-size:.9rem;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.danger{color:var(--bad)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding-bottom:12px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 8px;background:var(--surface);font-size:.85rem;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--c,var(--muted))}
+.alerts{display:flex;gap:8px;flex-wrap:wrap;padding-block:14px 0}
+.alert{border-radius:8px;padding:8px 12px;font-size:.9rem;font-weight:500;display:flex;gap:8px;align-items:center}
+.alert.bad{background:var(--bad-bg);color:var(--bad)}
+.alert.warn{background:var(--warn-bg);color:var(--warn)}
+.alert.ok{background:var(--ok-bg);color:var(--ok)}
+.banner{background:var(--accent);color:var(--accent-fg);padding-block:8px;font-size:.9rem}
+.banner .wrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.banner button{background:transparent;border:1px solid currentColor;color:inherit;border-radius:6px;padding:2px 10px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;padding-block:16px 40px}
+@media (max-width:980px){main{grid-template-columns:minmax(0,1fr)}}
+.cal-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.cal-head h2{font:700 1.5rem var(--f-display);margin:0 8px 0 0;text-transform:capitalize;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
+.seg button{border:0;background:var(--surface);padding:6px 12px;font-weight:600;font-size:.85rem}
+.seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--accent)}
+.grid-scroll{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line);gap:1px;min-width:770px}
+.dow{background:var(--surface-2);font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:6px 8px}
+.day{background:var(--surface);min-height:118px;padding:6px;display:flex;flex-direction:column;gap:4px;position:relative}
+.day.out{background:var(--bg)}
+.day.out .num{opacity:.45}
+.day .num{font:600 .8rem var(--f-mono);color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.day.today .num span{background:var(--accent);color:var(--accent-fg);border-radius:6px;padding:0 6px}
+.day .add{opacity:0;border:0;background:transparent;color:var(--muted);font-size:1rem;line-height:1;padding:0 4px;border-radius:4px}
+.day:hover .add,.day .add:focus-visible{opacity:1}
+.day .add:hover{background:var(--surface-2);color:var(--accent)}
+.post{display:block;width:100%;text-align:left;border:0;border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));border-radius:5px;padding:4px 6px;font-size:.78rem;line-height:1.3}
+.post:hover{background:color-mix(in srgb,var(--c) 24%,var(--surface))}
+.post .t{font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.post .n{font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.post.done{opacity:.6}
+.post.done .n{text-decoration:line-through}
+.post.late{box-shadow:inset 0 0 0 1px var(--bad)}
+.agenda{display:flex;flex-direction:column;gap:18px}
+.agenda-day h3{font:600 .8rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.agenda-day.today h3{color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;text-align:left;width:100%;border-left:5px solid var(--c)}
+.card + .card{margin-top:6px}
+.card:hover{border-color:var(--c)}
+.card .time{font:500 .85rem var(--f-mono);color:var(--muted);grid-row:span 2}
+.card .title{font-weight:600;min-width:0}
+.card .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--muted);min-width:0}
+.card .cap{grid-column:2;color:var(--muted);font-size:.86rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pill{font-size:.72rem;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.st-napad{background:var(--surface-2);color:var(--muted)}
+.st-priprava{background:var(--warn-bg);color:var(--warn)}
+.st-schvalenie{background:color-mix(in srgb,var(--accent) 16%,var(--surface));color:var(--accent)}
+.st-schvalene{background:var(--ok-bg);color:var(--ok)}
+.st-publikovane{background:var(--fg);color:var(--bg)}
+.pill.late{background:var(--bad-bg);color:var(--bad)}
+aside.rail{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.panel h3{font:700 1.05rem var(--f-display);margin:0 0 10px}
+.mini{display:flex;flex-direction:column;gap:8px}
+.mini button{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;text-align:left;border:0;background:transparent;padding:6px;border-radius:8px}
+.mini button:hover{background:var(--surface-2)}
+.mini .d{font:500 .75rem var(--f-mono);color:var(--muted);line-height:1.3}
+.mini .x{font-size:.86rem;font-weight:600;display:flex;gap:6px;align-items:center;min-width:0}
+.mini .x span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{color:var(--muted);font-size:.9rem}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:.85rem}
+.legend div{display:flex;gap:8px;align-items:center}
+/* dialog */
+.overlay{position:fixed;inset:0;background:rgba(10,16,28,.5);z-index:20;display:flex;justify-content:flex-end}
+.sheet{background:var(--surface);width:min(560px,100%);height:100%;overflow-y:auto;box-shadow:var(--shadow);padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) 20px;display:flex;flex-direction:column;gap:14px}
+.sheet h2{font:700 1.4rem var(--f-display);margin:0;text-wrap:balance}
+.sheet-head{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label,.lbl{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select,.field textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.field textarea{min-height:150px;resize:vertical;line-height:1.5}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks label{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:.85rem;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.checks input{accent-color:var(--accent)}
+.links{display:flex;flex-direction:column;gap:6px}
+.link-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px}
+.link-row input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 9px;min-width:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:auto;padding-top:8px;border-top:1px solid var(--line)}
+.actions .left{margin-right:auto}
+.caption{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:.92rem;overflow-wrap:anywhere}
+.drive{display:flex;flex-direction:column;gap:6px}
+.drive a{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--fg);text-decoration:none;font-weight:500;overflow-wrap:anywhere}
+.drive a:hover{border-color:var(--accent);color:var(--accent)}
+.drive a::before{content:"↗";font-family:var(--f-mono);color:var(--accent)}
+.kv{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.client-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.client-row input[type=color]{width:34px;height:34px;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--bg)}
+.client-row input[type=text]{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
+.share-box{background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;font:500 .78rem var(--f-mono);overflow-wrap:anywhere;user-select:all}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:40;font-weight:500;box-shadow:var(--shadow)}
+.note{font-size:.8rem;color:var(--muted)}
+.ro-note{font-size:.82rem;color:var(--muted)}
+@media (max-width:640px){.brand{font-size:1.15rem}.cal-head h2{font-size:1.2rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function(){
+"use strict";
+const params = new URLSearchParams(location.search);
+// Adresa servera (Google Apps Script /exec): z config.js, z odkazu (?api=) alebo uložená v zariadení
+let API = (window.KALENDAR_API_URL || "").trim();
+const API_FROM_CONFIG = !!API;
+if (!API && params.get("api")) API = params.get("api");
+if (!API) { try { API = localStorage.getItem("kal-api") || ""; } catch(e){} }
+else if (!API_FROM_CONFIG) { try { localStorage.setItem("kal-api", API); } catch(e){} }
+// Odkaz klienta (?k=…) si zapamätáme, aby fungoval aj po pridaní na plochu
+let TOKEN = (params.get("k") || "").replace(/[^a-zA-Z0-9]/g, "");
+if (TOKEN) { try { localStorage.setItem("kal-token", TOKEN); } catch(e){} }
+else { try { if (!localStorage.getItem("kal-key")) TOKEN = localStorage.getItem("kal-token") || ""; } catch(e){} }
+const APP_URL = location.origin + location.pathname;
+const PLATFORMS = ["Instagram","Facebook","TikTok","LinkedIn","YouTube"];
+const FORMATS = ["Reel","Karusel","Príspevok","Story","Video","Live"];
+const STATUSES = [["napad","Nápad"],["priprava","Pripravuje sa"],["schvalenie","Na schválenie"],["schvalene","Schválené"],["publikovane","Publikované"]];
+const STATUS_LABEL = Object.fromEntries(STATUSES);
+const PALETTE = ["#c2410c","#0e7490","#7c3aed","#be185d","#15803d","#a16207","#1d4ed8","#4b5563"];
+const MONTHS = ["január","február","marec","apríl","máj","jún","júl","august","september","október","november","december"];
+const DOW = ["Po","Ut","St","Št","Pi","So","Ne"];
+const DOW_LONG = ["pondelok","utorok","streda","štvrtok","piatok","sobota","nedeľa"];
+
+let state = {clients:[], posts:[]};
+let admin = false;
+let loaded = false;
+let key = "";
+try { key = localStorage.getItem("kal-key") || ""; } catch(e){}
+
+const ui = {month:null, filter:"all", view: window.innerWidth < 760 ? "list" : "month"};
+try { const v = localStorage.getItem("kal-view"); if (v) ui.view = v; } catch(e){}
+
+// ---------- server ----------
+async function call(fn, ...args){
+  if (!API) throw new Error("NO_API");
+  // text/plain = bez CORS preflight, Apps Script to tak vyžaduje
+  const res = await fetch(API, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify({fn, args}), redirect:"follow"});
+  const out = await res.json();
+  if (!out.ok) throw new Error(out.error || "ERROR");
+  return out.result;
+}
+function errMsg(e){
+  const m = String(e && e.message || e);
+  if (m.includes("NESPRAVNE_HESLO")) return "Nesprávne heslo";
+  if (m.includes("NEPLATNY_ODKAZ")) return "Tento odkaz už neplatí. Požiadajte o nový.";
+  return "Niečo sa nepodarilo. Skúste obnoviť stránku.";
+}
+async function load(){
+  try {
+    const d = await call("getData", TOKEN ? {token: TOKEN} : {key});
+    state = {clients: d.clients, posts: d.posts}; admin = d.admin; loaded = true;
+    if (!TOKEN && !admin) { loaded = false; key = ""; }
+  } catch(e){
+    if (TOKEN) { app.innerHTML = `<div class="wrap" style="padding-block:60px"><h1 class="brand">${esc(errMsg(e))}</h1></div>`; return; }
+    if (String(e && e.message).includes("NESPRAVNE_HESLO")) { key = ""; try{localStorage.removeItem("kal-key");}catch(_){} }
+    else { app.innerHTML = `<div class="wrap" style="padding-block:60px;display:flex;flex-direction:column;gap:12px;align-items:flex-start"><h1 class="brand">Nepodarilo sa načítať kalendár</h1><p class="note">Skontroluj internet a skús to znova.</p><button class="btn primary" type="button" onclick="location.reload()">Skúsiť znova</button></div>`; return; }
+  }
+  render();
+}
+
+// ---------- dates ----------
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const todayIso = () => iso(new Date());
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
+function dayLabel(s){ const d = parse(s); return DOW_LONG[(d.getDay()+6)%7]+" "+d.getDate()+". "+MONTHS[d.getMonth()]; }
+function shortDate(s){ const d = parse(s); return DOW[(d.getDay()+6)%7]+" "+d.getDate()+"."+(d.getMonth()+1)+"."; }
+{ const t = new Date(); ui.month = t.getFullYear()+"-"+pad(t.getMonth()+1); }
+
+// ---------- helpers ----------
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clientById = id => state.clients.find(c => c.id === id);
+const colorOf = id => (clientById(id)||{}).color || "#6b7280";
+function nowTime(){ const d = new Date(); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+const isLate = p => p.status !== "publikovane" && (p.date < todayIso() || (p.date === todayIso() && p.time && p.time < nowTime()));
+function safeUrl(u){ try { const x = new URL(u); return (x.protocol==="https:"||x.protocol==="http:") ? x.href : ""; } catch(e){ return ""; } }
+function sortPosts(a,b){ return (a.date+(a.time||"99:99")).localeCompare(b.date+(b.time||"99:99")); }
+const isClientView = () => !!TOKEN;
+function visiblePosts(){ return (!isClientView() && ui.filter !== "all") ? state.posts.filter(p => p.clientId === ui.filter) : state.posts; }
+function shareUrl(c){ return APP_URL + "?k=" + encodeURIComponent(c.token||"") + (API_FROM_CONFIG ? "" : "&api=" + encodeURIComponent(API)); }
+
+// ---------- render ----------
+const app = document.getElementById("app");
+function loginHtml(){
+  return `<div class="wrap" style="padding-block:60px;max-width:420px">
+    <form id="login-form" class="panel" style="display:flex;flex-direction:column;gap:12px">
+      <h1 class="brand"><small>SMMA · plán obsahu</small>Obsahový kalendár</h1>
+      <div class="field"><label for="l-key">Heslo správcu</label><input id="l-key" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" type="submit">Prihlásiť</button>
+      <p class="note" id="l-err" aria-live="polite"></p>
+      ${API_FROM_CONFIG ? "" : `<button class="btn ghost" type="button" data-act="reset-api" style="align-self:flex-start">Zmeniť adresu servera</button>`}
+    </form></div><div id="toast-root"></div>`;
+}
+function setupHtml(){
+  return `<div class="wrap" style="padding-block:60px;max-width:520px">
+    <form id="setup-form" class="panel" style="display:flex;flex-direction:column;gap:12px">
+      <h1 class="brand"><small>Prvé nastavenie</small>Obsahový kalendár</h1>
+      <p class="note">Vlož adresu svojej Google Apps Script appky. Je to odkaz, ktorý končí na <b>/exec</b> a dostal si ho pri nasadení.</p>
+      <div class="field"><label for="s-api">Adresa servera</label><input id="s-api" type="url" required placeholder="https://script.google.com/macros/s/…/exec"></div>
+      <button class="btn primary" type="submit">Pokračovať</button>
+      <p class="note" id="s-err" aria-live="polite"></p>
+    </form></div><div id="toast-root"></div>`;
+}
+function render(){
+  if (!API) { app.innerHTML = setupHtml(); return; }
+  if (!loaded) { app.innerHTML = (TOKEN || key) ? `<div class="wrap" style="padding-block:60px"><p class="empty">Načítavam plán…</p></div>` : loginHtml(); return; }
+  const cv = isClientView();
+  const posts = visiblePosts().slice().sort(sortPosts);
+  const t = todayIso();
+  const today = posts.filter(p => p.date === t && p.status !== "publikovane");
+  const late = posts.filter(p => p.date < t && p.status !== "publikovane");
+  const waiting = posts.filter(p => p.status === "schvalenie");
+  const editing = admin && !cv;
+
+  let html = `<header class="top"><div class="wrap"><div class="top-row">
+    <h1 class="brand"><small>${cv ? "Plán obsahu" : "SMMA · plán obsahu"}</small>${cv ? esc(state.clients[0] ? state.clients[0].name : "") : "Obsahový kalendár"}</h1>
+    ${editing ? `<button class="btn" type="button" data-act="clients">Klienti a zdieľanie</button>
+    <button class="btn primary" type="button" data-act="new">+ Nový príspevok</button>
+    <button class="btn ghost" type="button" data-act="logout">Odhlásiť</button>` : ""}
+  </div>`;
+  if (!cv && state.clients.length) {
+    html += `<div class="chips" role="group" aria-label="Filter klientov">
+      <button class="chip" type="button" data-filter="all" aria-pressed="${ui.filter==="all"}"><span class="dot" style="--c:var(--muted)"></span>Všetci klienti</button>
+      ${state.clients.map(c => `<button class="chip" type="button" data-filter="${esc(c.id)}" aria-pressed="${ui.filter===c.id}"><span class="dot" style="--c:${esc(c.color)}"></span>${esc(c.name)}</button>`).join("")}
+    </div>`;
+  }
+  html += `</div></header><div class="wrap"><div class="alerts" aria-live="polite">`;
+  if (late.length) html += `<button type="button" class="alert bad btn ghost" data-open="${esc(late[0].id)}">⚠ Zmeškané, nezverejnené: ${late.length}</button>`;
+  if (today.length) html += `<button type="button" class="alert warn btn ghost" data-open="${esc(today[0].id)}">● Dnes zverejniť: ${today.length} (${today.map(p=>p.time||"").filter(Boolean).join(", ")})</button>`;
+  if (waiting.length) html += `<span class="alert warn">Čaká na schválenie: ${waiting.length}</span>`;
+  if (!late.length && !today.length) html += `<span class="alert ok">✓ Na dnes nič nečaká</span>`;
+  html += `</div><main><section aria-label="Kalendár">`;
+  const [y,m] = ui.month.split("-").map(Number);
+  html += `<div class="cal-head">
+    <button class="btn" type="button" data-act="prev" aria-label="Predchádzajúci mesiac">←</button>
+    <button class="btn" type="button" data-act="next" aria-label="Ďalší mesiac">→</button>
+    <h2>${MONTHS[m-1]} ${y}</h2>
+    <button class="btn ghost" type="button" data-act="today">Dnes</button>
+    <div class="seg" role="group" aria-label="Zobrazenie">
+      <button type="button" data-view="month" aria-pressed="${ui.view==="month"}">Mesiac</button>
+      <button type="button" data-view="list" aria-pressed="${ui.view==="list"}">Zoznam</button>
+    </div></div>`;
+  html += ui.view === "month" ? monthGrid(y,m,posts,editing) : agenda(y,m,posts);
+  html += `</section><aside class="rail">${railHtml(posts, cv)}</aside></main></div><div id="sheet-root"></div><div id="toast-root"></div>`;
+  app.innerHTML = html;
+}
+function postChip(p){
+  const c = clientById(p.clientId);
+  const cls = ["post"]; if (p.status==="publikovane") cls.push("done"); else if (isLate(p)) cls.push("late");
+  return `<button type="button" class="${cls.join(" ")}" style="--c:${esc(colorOf(p.clientId))}" data-open="${esc(p.id)}" title="${esc((c?c.name+" · ":"")+p.title)}">
+    <span class="t">${esc(p.time||"")} ${esc(p.format||"")}</span><span class="n">${esc(p.title||"Bez názvu")}</span></button>`;
+}
+function monthGrid(y,m,posts,editing){
+  const first = new Date(y,m-1,1);
+  const start = new Date(first); start.setDate(1 - ((first.getDay()+6)%7));
+  const t = todayIso();
+  let h = `<div class="grid-scroll"><div class="grid">` + DOW.map(d=>`<div class="dow">${d}</div>`).join("");
+  for (let i=0;i<42;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    if (i===35 && d.getMonth() !== m-1) break;
+    const s = iso(d);
+    h += `<div class="day${d.getMonth()!==m-1?" out":""}${s===t?" today":""}">
+      <div class="num"><span>${d.getDate()}</span>${editing?`<button type="button" class="add" data-new="${s}" aria-label="Pridať príspevok na ${d.getDate()}.${d.getMonth()+1}.">+</button>`:""}</div>
+      ${posts.filter(p=>p.date===s).map(postChip).join("")}</div>`;
+  }
+  return h + `</div></div>`;
+}
+function agenda(y,m,posts){
+  const prefix = y+"-"+pad(m);
+  const list = posts.filter(p=>p.date.startsWith(prefix));
+  if (!list.length) return `<p class="empty">V tomto mesiaci zatiaľ nie je naplánovaný žiadny obsah.</p>`;
+  const t = todayIso(); const byDay = {};
+  list.forEach(p => (byDay[p.date] = byDay[p.date] || []).push(p));
+  return `<div class="agenda">` + Object.keys(byDay).sort().map(d => `<div class="agenda-day${d===t?" today":""}"><h3>${d===t?"Dnes · ":""}${dayLabel(d)}</h3>${byDay[d].map(cardHtml).join("")}</div>`).join("") + `</div>`;
+}
+function statusPill(p){
+  if (isLate(p) && p.date < todayIso()) return `<span class="pill late">Zmeškané · ${esc(STATUS_LABEL[p.status]||"")}</span>`;
+  return `<span class="pill st-${esc(p.status)}">${esc(STATUS_LABEL[p.status]||p.status)}</span>`;
+}
+function cardHtml(p){
+  const c = clientById(p.clientId);
+  return `<button type="button" class="card" style="--c:${esc(colorOf(p.clientId))}" data-open="${esc(p.id)}">
+    <span class="time">${esc(p.time||"–")}</span><span class="title">${esc(p.title||"Bez názvu")}</span>
+    <span class="meta">${c&&!isClientView()?`<span>${esc(c.name)}</span>·`:""}<span>${esc(p.format||"")}</span>·<span>${esc((p.platforms||[]).join(", "))}</span>${statusPill(p)}</span>
+    ${p.caption?`<span class="cap">${esc(p.caption)}</span>`:""}</button>`;
+}
+function railHtml(posts, cv){
+  const t = todayIso(); const end = new Date(); end.setDate(end.getDate()+7);
+  const next = posts.filter(p => p.date >= t && p.date <= iso(end) && p.status !== "publikovane");
+  let h = `<div class="panel"><h3>Najbližších 7 dní</h3>`;
+  h += next.length ? `<div class="mini">${next.map(p=>`<button type="button" data-open="${esc(p.id)}"><span class="d">${p.date===t?"DNES":esc(shortDate(p.date))}<br>${esc(p.time||"")}</span><span class="x"><span class="dot" style="--c:${esc(colorOf(p.clientId))}"></span><span>${esc(p.title||"Bez názvu")}</span></span></button>`).join("")}</div>`
+    : `<p class="empty">Na najbližší týždeň nie je nič naplánované.</p>`;
+  h += `</div>`;
+  if (!cv) h += `<div class="panel"><h3>Stav príspevkov</h3><div class="legend">${STATUSES.map(([k,l])=>`<div><span class="pill st-${k}">${l}</span><span class="note">${posts.filter(p=>p.status===k).length}×</span></div>`).join("")}</div></div>`;
+  else h += `<div class="panel"><h3>Ako čítať tento plán</h3><p class="note">Kliknite na príspevok a uvidíte text, ktorý pôjde von, a odkazy na videá a grafiky v Google Drive. Stav „Na schválenie“ znamená, že čakáme na vaše potvrdenie.</p></div>`;
+  return h;
+}
+
+// ---------- sheets ----------
+function openSheet(inner){
+  const root = document.getElementById("sheet-root");
+  root.innerHTML = `<div class="overlay" data-act="close-bg"><div class="sheet" role="dialog" aria-modal="true">${inner}</div></div>`;
+  const f = root.querySelector("input,select,textarea,button"); if (f) f.focus();
+}
+function closeSheet(){ const r = document.getElementById("sheet-root"); if (r) r.innerHTML = ""; }
+function gcalLink(p){
+  const c = clientById(p.clientId);
+  const start = p.date.replace(/-/g,"") + "T" + (p.time||"09:00").replace(":","") + "00";
+  const d = parse(p.date); const [hh,mm] = (p.time||"09:00").split(":").map(Number); d.setHours(hh, mm+30);
+  const end = iso(d).replace(/-/g,"") + "T" + pad(d.getHours()) + pad(d.getMinutes()) + "00";
+  const txt = "Postnúť: " + (c?c.name+" – ":"") + (p.title||"");
+  const details = [(p.platforms||[]).join(", ")+" · "+(p.format||""), "", p.caption||"", "", ...(p.links||[]).map(l=>l.label+": "+l.url)].join("\n");
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(txt)+"&dates="+start+"/"+end+"&details="+encodeURIComponent(details.slice(0,1500));
+}
+function showPost(id){
+  const p = state.posts.find(x=>x.id===id); if (!p) return;
+  const c = clientById(p.clientId);
+  const links = (p.links||[]).filter(l=>safeUrl(l.url));
+  const editing = admin && !isClientView();
+  openSheet(`<div class="sheet-head"><div><div class="kv"><span class="dot" style="--c:${esc(colorOf(p.clientId))}"></span><span class="note">${esc(c?c.name:"")}</span></div><h2>${esc(p.title||"Bez názvu")}</h2></div>
+    <button class="btn ghost" type="button" data-act="close" aria-label="Zavrieť">✕</button></div>
+    <div class="kv"><span class="pill">${esc(dayLabel(p.date))}, ${esc(p.time||"čas neurčený")}</span><span class="pill">${esc(p.format||"")}</span>${(p.platforms||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}${statusPill(p)}</div>
+    <div class="field"><span class="lbl">Text príspevku</span>${p.caption?`<div class="caption" id="cap-text">${esc(p.caption)}</div><div><button class="btn" type="button" data-copy="${esc(p.id)}">Kopírovať text</button></div>`:`<p class="empty">Text zatiaľ nie je napísaný.</p>`}</div>
+    <div class="field"><span class="lbl">Videá a grafiky</span>${links.length?`<div class="drive">${links.map(l=>`<a href="${esc(safeUrl(l.url))}" target="_blank" rel="noopener">${esc(l.label||"Súbor v Google Drive")}</a>`).join("")}</div>`:`<p class="empty">Bez priložených súborov.</p>`}</div>
+    ${p.notes && editing ? `<div class="field"><span class="lbl">Interné poznámky</span><div class="caption">${esc(p.notes)}</div></div>`:""}
+    <div class="actions">
+      ${editing ? `<a class="btn left" href="${esc(gcalLink(p))}" target="_blank" rel="noopener">Pripomienka do Google Kalendára</a>
+      ${p.status!=="publikovane"?`<button class="btn" type="button" data-done="${esc(p.id)}">✓ Zverejnené</button>`:""}<button class="btn primary" type="button" data-edit="${esc(p.id)}">Upraviť</button>` : `<button class="btn" type="button" data-act="close">Zavrieť</button>`}
+    </div>`);
+}
+let linkSeq = 100;
+function linkRow(l){ const n = linkSeq++; return `<div class="link-row"><input id="f-ll-${n}" aria-label="Popis odkazu" placeholder="Popis (Video, Cover…)" value="${esc(l.label)}" data-k="label"><input id="f-lu-${n}" aria-label="URL adresa" placeholder="https://drive.google.com/…" value="${esc(l.url)}" data-k="url" inputmode="url"><button class="btn ghost" type="button" data-act="rm-link" aria-label="Odstrániť odkaz">✕</button></div>`; }
+function editPost(id, date, copyFrom){
+  if (!state.clients.length) { showClients(true); return; }
+  const base = copyFrom || (id ? state.posts.find(x=>x.id===id) : null) ||
+    {clientId: ui.filter!=="all"?ui.filter:state.clients[0].id, date: date||todayIso(), time:"18:00", platforms:["Instagram"], format:"Reel", status:"napad", title:"", caption:"", links:[], notes:""};
+  const p = Object.assign({}, base, copyFrom ? {title: base.title+" (kópia)", status:"napad"} : {});
+  const links = (p.links && p.links.length) ? p.links : [{label:"",url:""}];
+  openSheet(`<form id="post-form" novalidate>
+    <div class="sheet-head"><h2>${id?"Upraviť príspevok":"Nový príspevok"}</h2><button class="btn ghost" type="button" data-act="close" aria-label="Zavrieť">✕</button></div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
+    <div class="field"><label for="f-title">Názov / téma</label><input id="f-title" name="title" required value="${esc(p.title)}" placeholder="napr. Reel – novinka v menu"></div>
+    <div class="row">
+      <div class="field"><label for="f-client">Klient</label><select id="f-client" name="clientId">${state.clients.map(c=>`<option value="${esc(c.id)}"${c.id===p.clientId?" selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+      <div class="field"><label for="f-status">Stav</label><select id="f-status" name="status">${STATUSES.map(([k,l])=>`<option value="${k}"${k===p.status?" selected":""}>${l}</option>`).join("")}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="f-date">Dátum</label><input id="f-date" type="date" name="date" required value="${esc(p.date)}"></div>
+      <div class="field"><label for="f-time">Čas</label><input id="f-time" type="time" name="time" value="${esc(p.time)}"></div>
+      <div class="field"><label for="f-format">Formát</label><select id="f-format" name="format">${FORMATS.map(f=>`<option${f===p.format?" selected":""}>${f}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><span class="lbl">Platformy</span><div class="checks">${PLATFORMS.map((x,i)=>`<label for="f-pl-${i}"><input id="f-pl-${i}" type="checkbox" name="platforms" value="${x}"${(p.platforms||[]).includes(x)?" checked":""}>${x}</label>`).join("")}</div></div>
+    <div class="field"><label for="f-caption">Text príspevku (caption)</label><textarea id="f-caption" name="caption" placeholder="Text, hashtagy, CTA…">${esc(p.caption)}</textarea></div>
+    <div class="field"><span class="lbl">Odkazy na Google Drive</span><div class="links" id="links">${links.map(linkRow).join("")}</div><div><button class="btn" type="button" data-act="add-link">+ Pridať odkaz</button></div></div>
+    <div class="field"><label for="f-notes">Interné poznámky (klient ich nevidí)</label><textarea id="f-notes" name="notes" style="min-height:70px">${esc(p.notes)}</textarea></div>
+    </div>
+    <div class="actions" style="margin-top:16px">
+      ${id?`<button class="btn danger left" type="button" data-del="${esc(id)}">Vymazať</button><button class="btn" type="button" data-dup="${esc(id)}">Duplikovať</button>`:""}
+      <button class="btn" type="button" data-act="close">Zrušiť</button>
+      <button class="btn primary" type="submit">Uložiť</button>
+    </div>
+    <input type="hidden" name="pid" value="${esc(id||"")}">
+  </form>`);
+}
+function showClients(firstRun){
+  openSheet(`<div class="sheet-head"><h2>Klienti a zdieľanie</h2><button class="btn ghost" type="button" data-act="close" aria-label="Zavrieť">✕</button></div>
+    ${firstRun?`<p class="note">Najprv pridaj aspoň jedného klienta.</p>`:""}
+    <p class="note">Každý klient má vlastný tajný odkaz. Majiteľ firmy cez neho uvidí iba svoj plán, nič nemôže meniť a interné poznámky nevidí. Nový klient dostane odkaz po uložení.</p>
+    <div id="client-list">${state.clients.map(c=>`<div class="client-row" data-cid="${esc(c.id)}">
+      <input type="color" id="cc-${esc(c.id)}" value="${esc(c.color)}" aria-label="Farba klienta">
+      <input type="text" id="cn-${esc(c.id)}" value="${esc(c.name)}" aria-label="Názov klienta">
+      <button class="btn ghost danger" type="button" data-delclient="${esc(c.id)}" aria-label="Odstrániť klienta">✕</button>
+      ${c.token?`<div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="share-box" style="flex:1 1 220px">${esc(shareUrl(c))}</div>
+        <button class="btn" type="button" data-share="${esc(c.id)}">Kopírovať odkaz</button>
+        <a class="btn ghost" href="${esc(shareUrl(c))}" target="_blank" rel="noopener">Náhľad</a>
+        <button class="btn ghost" type="button" data-reset="${esc(c.id)}">Nový odkaz</button>
+      </div>`:`<div class="note" style="grid-column:1/-1">Odkaz sa vytvorí po uložení.</div>`}</div>`).join("")}</div>
+    <div class="row"><div class="field"><label for="new-client">Nový klient</label><input id="new-client" placeholder="Názov firmy"></div></div>
+    <div><button class="btn" type="button" data-act="add-client">+ Pridať klienta</button></div>
+    ${state.clients.some(c=>/\(príklad\)/.test(c.name))?`<p class="note">Ukážkoví klienti sú označení „(príklad)“. Odstráň ich krížikom a ulož, zmažú sa aj ich príspevky.</p>`:""}
+    <div class="actions"><button class="btn" type="button" data-act="close">Zavrieť</button><button class="btn primary" type="button" data-act="save-clients">Uložiť klientov</button></div>`);
+}
+function toast(msg){
+  const r = document.getElementById("toast-root"); if (!r) return;
+  r.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+  clearTimeout(toast._t); toast._t = setTimeout(()=>{ r.innerHTML=""; }, 2600);
+}
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); toast("Skopírované"); }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch(_){}
+    ta.remove(); toast(ok ? "Skopírované" : "Označ text a skopíruj ho ručne");
+  }
+}
+async function run(fn, args, okMsg){
+  toast("Ukladám…");
+  try { const r = await call(fn, key, ...args); toast(okMsg); return r; }
+  catch(e){ toast(errMsg(e)); return null; }
+}
+function readClientRows(){
+  document.querySelectorAll("#client-list .client-row").forEach(row => {
+    const c = clientById(row.dataset.cid); if (!c) return;
+    c.name = row.querySelector('input[type=text]').value.trim() || c.name;
+    c.color = row.querySelector('input[type=color]').value;
+  });
+}
+
+// ---------- events ----------
+app.addEventListener("click", async (ev) => {
+  const el = ev.target.closest("[data-act],[data-open],[data-filter],[data-view],[data-new],[data-edit],[data-done],[data-del],[data-dup],[data-copy],[data-share],[data-reset],[data-delclient]");
+  if (!el) return;
+  const d = el.dataset;
+  if (d.act === "close-bg") { if (ev.target === el) closeSheet(); return; }
+  if (d.open) return showPost(d.open);
+  if (d.filter) { ui.filter = d.filter; return render(); }
+  if (d.view) { ui.view = d.view; try{localStorage.setItem("kal-view",d.view);}catch(e){} return render(); }
+  if (d.new) return editPost(null, d.new);
+  if (d.edit) return editPost(d.edit);
+  if (d.copy) { const p = state.posts.find(x=>x.id===d.copy); return copyText(p ? p.caption : ""); }
+  if (d.share) { const c = clientById(d.share); return copyText(shareUrl(c)); }
+  if (d.dup) { const p = state.posts.find(x=>x.id===d.dup); return editPost(null, null, JSON.parse(JSON.stringify(p))); }
+  if (d.done) {
+    const p = state.posts.find(x=>x.id===d.done); if (!p) return;
+    const r = await run("savePost", [Object.assign({}, p, {status:"publikovane"})], "Označené ako zverejnené");
+    if (r) { Object.assign(p, r); closeSheet(); render(); } return;
+  }
+  if (d.del) {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "Naozaj vymazať?"; return; }
+    if (await run("deletePost", [d.del], "Príspevok vymazaný") !== null) { state.posts = state.posts.filter(x=>x.id!==d.del); closeSheet(); render(); }
+    return;
+  }
+  if (d.reset) {
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "Starý odkaz prestane fungovať. Pokračovať?"; return; }
+    readClientRows();
+    const r = await run("resetClientLink", [d.reset], "Nový odkaz vytvorený"); if (r) { state.clients = r; showClients(false); } return;
+  }
+  if (d.delclient) {
+    const n = state.posts.filter(p=>p.clientId===d.delclient).length;
+    if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = n ? `Zmazať aj ${n} príspevkov?` : "Naozaj?"; return; }
+    el.closest(".client-row").remove(); return;
+  }
+  switch (d.act) {
+    case "close": return closeSheet();
+    case "new": return editPost(null);
+    case "clients": return showClients(false);
+    case "reset-api": API = ""; try{localStorage.removeItem("kal-api");}catch(e){} return render();
+    case "logout": key = ""; loaded = false; admin = false; try{localStorage.removeItem("kal-key");}catch(e){} return render();
+    case "prev": case "next": {
+      const [y,m] = ui.month.split("-").map(Number); const dt = new Date(y, m-1 + (d.act==="next"?1:-1), 1);
+      ui.month = dt.getFullYear()+"-"+pad(dt.getMonth()+1); return render();
+    }
+    case "today": { const t = new Date(); ui.month = t.getFullYear()+"-"+pad(t.getMonth()+1); return render(); }
+    case "add-link": document.getElementById("links").insertAdjacentHTML("beforeend", linkRow({label:"",url:""})); return;
+    case "rm-link": el.closest(".link-row").remove(); return;
+    case "add-client": {
+      const inp = document.getElementById("new-client"); const name = inp.value.trim(); if (!name) { inp.focus(); return; }
+      readClientRows();
+      const keep = new Set([...document.querySelectorAll("#client-list .client-row")].map(r=>r.dataset.cid));
+      state.clients = state.clients.filter(c=>keep.has(c.id));
+      state.clients.push({id: "c-" + Math.random().toString(36).slice(2,10), name, color: PALETTE[state.clients.length % PALETTE.length], token:""});
+      return showClients(false);
+    }
+    case "save-clients": {
+      readClientRows();
+      const keep = new Set([...document.querySelectorAll("#client-list .client-row")].map(r=>r.dataset.cid));
+      const list = state.clients.filter(c=>keep.has(c.id)).map(c=>({id:c.id, name:c.name, color:c.color}));
+      const r = await run("saveClients", [list], "Klienti uložení");
+      if (r) {
+        state.clients = r; const ids = new Set(r.map(c=>c.id));
+        state.posts = state.posts.filter(p=>ids.has(p.clientId));
+        if (ui.filter !== "all" && !ids.has(ui.filter)) ui.filter = "all";
+        render(); showClients(false);
+      }
+      return;
+    }
+  }
+});
+app.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (f.id === "setup-form") {
+    const u = f.querySelector("#s-api").value.trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)) { f.querySelector("#s-err").textContent = "Adresa musí vyzerať takto: https://script.google.com/macros/s/…/exec"; return; }
+    API = u; try{localStorage.setItem("kal-api", u);}catch(e){}
+    return render();
+  }
+  if (f.id === "login-form") {
+    const k = f.querySelector("#l-key").value;
+    const btn = f.querySelector("button"); btn.disabled = true;
+    try {
+      const ok = await call("checkLogin", k);
+      if (!ok) { f.querySelector("#l-err").textContent = "Nesprávne heslo."; btn.disabled = false; return; }
+      key = k; try{localStorage.setItem("kal-key", k);}catch(e){}
+      render(); await load();
+    } catch(e) { f.querySelector("#l-err").textContent = errMsg(e); btn.disabled = false; }
+    return;
+  }
+  if (f.id !== "post-form") return;
+  if (!f.elements.title.value.trim()) { f.elements.title.focus(); toast("Doplň názov príspevku"); return; }
+  if (!f.elements.date.value) { f.elements.date.focus(); toast("Vyber dátum"); return; }
+  const links = [...f.querySelectorAll(".link-row")].map(r => ({label: r.querySelector('[data-k=label]').value.trim(), url: r.querySelector('[data-k=url]').value.trim()})).filter(l => l.url);
+  if (links.find(l => !safeUrl(l.url))) { toast("Odkaz musí začínať https://"); return; }
+  const post = {
+    id: f.querySelector('input[name=pid]').value,
+    clientId: f.elements.clientId.value, status: f.elements.status.value, date: f.elements.date.value, time: f.elements.time.value, format: f.elements.format.value,
+    platforms: [...f.querySelectorAll('input[name=platforms]:checked')].map(x=>x.value),
+    title: f.elements.title.value.trim(), caption: f.elements.caption.value, links, notes: f.elements.notes.value
+  };
+  const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+  const saved = await run("savePost", [post], "Príspevok uložený");
+  btn.disabled = false;
+  if (!saved) return;
+  const i = state.posts.findIndex(p=>p.id===saved.id);
+  if (i >= 0) state.posts[i] = saved; else state.posts.push(saved);
+  ui.month = saved.date.slice(0,7);
+  closeSheet(); render();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+render();
+if (API && (TOKEN || key)) load();
+if ("serviceWorker" in navigator) { window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+})();
+</script>
+</body>
+</html>
