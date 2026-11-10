@@ -195,8 +195,13 @@ try { const v = localStorage.getItem("kal-view"); if (v) ui.view = v; } catch(e)
 async function call(fn, ...args){
   if (!API) throw new Error("NO_API");
   // text/plain = bez CORS preflight, Apps Script to tak vyžaduje
-  const res = await fetch(API, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify({fn, args}), redirect:"follow"});
-  const out = await res.json();
+  let res;
+  try { res = await fetch(API, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify({fn, args}), redirect:"follow"}); }
+  catch(e){ throw new Error("SERVER_NEDOSTUPNY"); }
+  const text = await res.text();
+  let out;
+  try { out = JSON.parse(text); }
+  catch(e){ console.warn("Odpoveď servera:", res.status, text.slice(0,300)); throw new Error(/doPost/i.test(text) ? "CHYBA_DOPOST" : "SERVER_NIE_JSON"); }
   if (!out.ok) throw new Error(out.error || "ERROR");
   return out.result;
 }
@@ -204,6 +209,10 @@ function errMsg(e){
   const m = String(e && e.message || e);
   if (m.includes("NESPRAVNE_HESLO")) return "Nesprávne heslo";
   if (m.includes("NEPLATNY_ODKAZ")) return "Tento odkaz už neplatí. Požiadajte o nový.";
+  if (m.includes("SERVER_NEDOSTUPNY")) return "Nepodarilo sa spojiť so serverom. Skontroluj internet. Ak to pretrváva, v Apps Script skontroluj Deploy → Manage deployments: „Who has access“ musí byť „Anyone“.";
+  if (m.includes("SERVER_NIE_JSON")) return "Server odpovedal, ale nie dátami (pravdepodobne prihlasovacou stránkou Google). V Apps Script otvor Deploy → Manage deployments → ceruzka a nastav „Execute as: Me“ a „Who has access: Anyone“, potom Version: New version → Deploy.";
+  if (m.includes("CHYBA_DOPOST")) return "Na serveri chýba novší kód. Vlož do Apps Script celý nový Code.gs a nasaď novú verziu (Deploy → Manage deployments → ceruzka → New version).";
+  if (m.includes("Exception") || m.includes("Error")) return "Chyba na serveri: " + m;
   return "Niečo sa nepodarilo. Skúste obnoviť stránku.";
 }
 async function load(){
