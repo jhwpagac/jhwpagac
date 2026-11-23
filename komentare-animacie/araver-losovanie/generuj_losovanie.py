@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Story 9:16 – vyhlásenie výhercu: mená sa točia ako na automate a zastavia na výhercovi.
-Ostatné mená sú zámerne skryté (*****), nejde o skutočné účty."""
+"""Story 9:16 – vyhlásenie výhercu: mená účastníkov sa točia ako na automate a zastavia na výhercovi."""
 import math, os, sys, shutil, subprocess
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -22,10 +21,17 @@ T_WIN = T_SPIN + D_SPIN
 rng = np.random.default_rng(8)
 ROW = 150; N_ITEMS = 46            # koľko mien prebehne
 
-def masked():
-    a = "abcdefghijklmnoprstuvz"
-    return "@" + "".join(rng.choice(list(a), 2)) + "*" * int(rng.integers(4, 8))
-NAMES = [masked() for _ in range(N_ITEMS)] + [VYHERCA, masked(), masked()]
+# účastníci súťaže (autori komentárov pod príspevkom, súhlasili so zverejnením mena)
+UCASTNICI = ["_viktortopoli_", "patrikvarga.69", "erik_hrnciarik", "sun.rus", "zuzanajanosik", "duso107",
+             "marcipanik_mata", "sarlo_vavro", "zofcin_.45._", "mato_sotak_", "monciqund", "michal__9",
+             "pa3ciia", "_alucard_zxc", "mar_ek.ley", "lukas_klima_s", "jarkasimona", "martin_chmelik",
+             "simonachabadova", "aja.z", "_k_ia_", "stfn_mkl", "vikineckaaa_", "jana_lahka", "m_i_r_c_a",
+             "tosko_lahky"]
+ostatni = ["@" + u for u in UCASTNICI]
+seq = []
+while len(seq) < N_ITEMS + 2:
+    blok = list(ostatni); rng.shuffle(blok); seq += blok
+NAMES = seq[:N_ITEMS] + [VYHERCA] + seq[N_ITEMS:N_ITEMS + 2]
 WIN_IDX = N_ITEMS
 
 def background():
@@ -113,9 +119,10 @@ def frame(t):
         if pt > 0:
             a = int(255 * pt)
             txt = Image.new("RGBA", (W, 300), (0, 0, 0, 0)); td = ImageDraw.Draw(txt)
-            td.text((W / 2, 60), "Výhercu sme vylosovali", font=pf("Medium", 40), fill=(230, 230, 235, a), anchor="mm")
-            td.text((W / 2, 115), "spomedzi všetkých komentárov.", font=pf("Medium", 40), fill=(230, 230, 235, a), anchor="mm")
-            td.text((W / 2, 210), "Ozveme sa ti do správ!", font=pf("Bold", 46), fill=(255, 255, 255, a), anchor="mm")
+            td.rounded_rectangle([110, 10, W - 110, 260], radius=36, fill=(14, 14, 16, int(225 * pt)), outline=(60, 60, 66, a), width=2)
+            td.text((W / 2, 60), "Vyhráva 2 VIP vstupenky na", font=pf("Medium", 40), fill=(230, 230, 235, a), anchor="mm")
+            td.text((W / 2, 115), "PML 22 | ARAVER FIGHT NIGHT", font=pf("Bold", 42), fill=(230, 230, 235, a), anchor="mm")
+            td.text((W / 2, 210), "Ozveme sa Vám do komentárov!", font=pf("Bold", 46), fill=(255, 255, 255, a), anchor="mm")
             im.paste(txt, (0, int(1330 + (1 - pt) * 30)), txt)
     # záverečné stmavnutie
     po = prog(t, DUR - 0.4, 0.4)
