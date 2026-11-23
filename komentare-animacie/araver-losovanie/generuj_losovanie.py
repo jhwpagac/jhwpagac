@@ -122,7 +122,7 @@ def frame(t):
             td.rounded_rectangle([110, 10, W - 110, 260], radius=36, fill=(14, 14, 16, int(225 * pt)), outline=(60, 60, 66, a), width=2)
             td.text((W / 2, 60), "Vyhráva 2 VIP vstupenky na", font=pf("Medium", 40), fill=(230, 230, 235, a), anchor="mm")
             td.text((W / 2, 115), "PML 22 | ARAVER FIGHT NIGHT", font=pf("Bold", 42), fill=(230, 230, 235, a), anchor="mm")
-            td.text((W / 2, 210), "Ozveme sa Vám do komentárov!", font=pf("Bold", 46), fill=(255, 255, 255, a), anchor="mm")
+            td.text((W / 2, 210), "Ozveme sa Vám do správ!", font=pf("Bold", 46), fill=(255, 255, 255, a), anchor="mm")
             im.paste(txt, (0, int(1330 + (1 - pt) * 30)), txt)
     # záverečné stmavnutie
     po = prog(t, DUR - 0.4, 0.4)
