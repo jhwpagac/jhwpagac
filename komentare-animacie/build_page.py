@@ -19,9 +19,13 @@ ITEMS = [
   ("Suma 0 → 130 000 €", "4 s · fialové pozadie · cink + kasa", "realitky/suma_130000_fialove_pozadie.mp4", "suma_130000.mp4"),
   ("Tento byt sme predali", "6 s · zelené pozadie · 3 fotky + pečiatka", "byt/predany_byt_greenscreen.mp4", "predany_byt.mp4"),
 ]
-cards = []
+LIMIT = 15_000_000          # stránka môže mať max 16 MB – najstaršie položky sa vynechajú
+cards = []; total = 0
 for i, (t, meta, p, fn) in enumerate(ITEMS):
     b = base64.b64encode(open(R + p, "rb").read()).decode()
+    total += len(b)
+    if total > LIMIT:
+        print("vynechané (limit):", ", ".join(x[0] for x in ITEMS[i:])); break
     cards.append(f'''<article class="card">
 <video id="v{i}" src="data:video/mp4;base64,{b}" controls playsinline preload="metadata"></video>
 <div class="row"><div class="txt"><h2>{html.escape(t)}</h2><p>{html.escape(meta)}</p></div>
