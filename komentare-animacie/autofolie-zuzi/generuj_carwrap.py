@@ -37,6 +37,24 @@ FILL_MAIN = gradient(MW, MH, (255, 255, 255), (205, 208, 214))
 M_SUB = text_mask("AUTOFÓLIE ZUZI", pf("SemiBold", 60 * S), spacing=14 * S)
 M_CITY = text_mask("TRENČÍN", pf("Medium", 40 * S), spacing=18 * S)
 
+# logo Autofólie ZUZI (biele, bez pozadia) – rovnaké vyrezanie ako v hooku
+def nacitaj_logo(width):
+    src = Image.open(os.path.join(HERE, "zdroj_logo.jpg")).convert("RGB").crop((205, 340, 850, 690))
+    L = np.asarray(src.convert("L")).astype(float)
+    a = np.clip((L - 70) / (225 - 70), 0, 1) * 255
+    img = Image.new("RGBA", src.size, WHITE + (0,)); img.putalpha(Image.fromarray(a.astype(np.uint8)))
+    img = img.crop(img.getbbox())
+    img = img.resize((width, int(img.height * width / img.width)), Image.LANCZOS)
+    # jemná tmavá žiara, aby sa logo oddelilo od textu, ktorý prekrýva
+    P = 24 * S
+    out = Image.new("RGBA", (img.width + 2 * P, img.height + 2 * P), (0, 0, 0, 0))
+    la = Image.new("L", out.size, 0); la.paste(img.split()[3], (P, P))
+    la = la.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.GaussianBlur(7 * S)).point(lambda v: min(255, int(v * 1.1)))
+    dk = Image.new("RGBA", out.size, (16, 17, 20, 0)); dk.putalpha(la)
+    out.alpha_composite(dk); out.alpha_composite(img, (P, P))
+    return out
+LOGO = nacitaj_logo(440 * S)
+
 def layer_from(mask, fill):
     im = fill.convert("RGBA") if isinstance(fill, Image.Image) else Image.new("RGBA", mask.size, fill + (255,))
     im.putalpha(mask); return im
@@ -94,6 +112,14 @@ def frame(t):
             cx = W * S / 2; hw = mask.size[0] / 2 + 30 * S
             for sgn in (-1, 1):
                 d.line([(cx + sgn * hw, y), (cx + sgn * (hw + 60 * S * e), y)], fill=GOLD + (a,), width=int(3 * S))
+    # ---- logo – vysunie sa zdola a trochu prekryje TRENČÍN
+    pl2 = prog(t, 1.9, 0.6)
+    if pl2 > 0:
+        e = ease_out_cubic(pl2)
+        lg = LOGO.copy(); al = lg.split()[3].point(lambda v: int(v * clamp(pl2 * 2) * (1 - pout)))
+        lg.putalpha(al)
+        top = CY * S + 40 * S + 6 * S                 # vrch loga trochu zasahuje do riadku TRENČÍN
+        big.alpha_composite(lg, (int((W * S - lg.width) / 2), int(top - 24 * S + (1 - e) * 60 * S + pout * 40 * S)))
     return big.resize((W, H), Image.LANCZOS)
 
 def foil(dur=0.95):
@@ -114,6 +140,8 @@ def main():
     add(buf, sparkle(), 1.2)
     add(buf, whoosh(0.5, 600, 3000, 0.3), 1.1, 0.2)
     add(buf, pop(1000, 300, 0.1, 0.4), 1.6, 0.3)
+    add(buf, whoosh(0.45, 500, 2600, 0.3), 1.85, 0.0)
+    add(buf, pop(800, 250, 0.11, 0.45), 2.15)
     add(buf, foil(0.55), 4.35, 0.4)
     wav = os.path.join(HERE, NAME + "_zvuk.wav"); write_wav(wav, finish(buf))
     seq = os.path.join(tmp, "f_%04d.png")

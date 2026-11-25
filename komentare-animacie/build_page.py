@@ -4,7 +4,7 @@ Použitie: python3 build_page.py <výstup.html>   – najnovšie animácie patri
 import base64, html, os, sys
 R = os.path.dirname(os.path.abspath(__file__)) + "/"
 ITEMS = [
-  ("Autofólie ZUZI – CAR WRAP (text)", "5 s · 1080×1920 · zelené pozadie · nápis sa „obalí“ fóliou", "autofolie-zuzi/carwrap_autofolie_zuzi_zelene_pozadie.mp4", "carwrap_autofolie_zuzi.mp4"),
+  ("Autofólie ZUZI – CAR WRAP (text)", "5 s · 1080×1920 · zelené pozadie · nápis sa „obalí“ fóliou + logo zdola", "autofolie-zuzi/carwrap_autofolie_zuzi_zelene_pozadie.mp4", "carwrap_autofolie_zuzi.mp4"),
   ("Araver – 3 červené boxy: poistenie, servis, cestná daň", "6,3 s · zelené pozadie · boxy vybehnú po 1 sekunde", "araver-ponuka/araver_ponuka_3_boxy_zelene_pozadie.mp4", "araver_ponuka_3_boxy.mp4"),
   ("Losovanie výhercu – story @lysak8", "9 s · 1080×1920 · hotová story s pozadím · skutočné mená účastníkov", "araver-losovanie/losovanie_vyherca_story.mp4", "losovanie_vyherca_story.mp4"),
   ("Araver – 5 áut Škoda (Reels 9:16)", "7,2 s · 1080×1920 · zelené pozadie · Kamiq, Karoq, Scala, Octavia, Fabia", "araver-auta/araver_auta_reels_zelene_pozadie.mp4", "araver_auta_reels.mp4"),
