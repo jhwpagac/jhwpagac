@@ -19,6 +19,9 @@ ITEMS = [
   ("Suma 0 → 130 000 €", "4 s · fialové pozadie · cink + kasa", "realitky/suma_130000_fialove_pozadie.mp4", "suma_130000.mp4"),
   ("Tento byt sme predali", "6 s · zelené pozadie · 3 fotky + pečiatka", "byt/predany_byt_greenscreen.mp4", "predany_byt.mp4"),
 ]
+# voliteľne: python3 build_page.py out.html "Názov" "popis" cesta.mp4 subor.mp4  -> stránka len s jedným videom
+if len(sys.argv) == 6:
+    ITEMS = [tuple(sys.argv[2:6])]
 LIMIT = 15_000_000          # stránka môže mať max 16 MB – najstaršie položky sa vynechajú
 cards = []; total = 0
 for i, (t, meta, p, fn) in enumerate(ITEMS):
@@ -31,7 +34,8 @@ for i, (t, meta, p, fn) in enumerate(ITEMS):
 <div class="row"><div class="txt"><h2>{html.escape(t)}</h2><p>{html.escape(meta)}</p></div>
 <button type="button" id="b{i}" data-i="{i}" data-fn="{fn}">Stiahnuť video</button></div>
 <p class="msg" id="m{i}" aria-live="polite"></p></article>''')
-page = f'''<title>Animácie na stiahnutie</title>
+TITLE = 'Animácie na stiahnutie' if len(sys.argv) != 6 else 'Video na stiahnutie'
+page = f'''<title>{TITLE}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* layout: jeden stĺpec kariet, video hore, veľké tlačidlo pod ním */
@@ -58,7 +62,7 @@ button:disabled{{opacity:.55;cursor:default}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&display=swap">
 <main>
-<header><h1>Animácie na stiahnutie</h1>
+<header><h1>{TITLE}</h1>
 <p>Pozri si video a klikni na „Stiahnuť video“. Stiahne sa celé MP4 aj so zvukom.</p></header>
 {''.join(cards)}
 <p class="tip"><b>V Premiere:</b> daj video nad svoj záber → Effects → <b>Ultra Key</b> → kvapátkom klikni na zelenú alebo fialovú plochu. Pozadie zmizne.</p>
